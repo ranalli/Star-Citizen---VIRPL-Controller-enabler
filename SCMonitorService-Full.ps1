@@ -6,10 +6,12 @@
   then disables controllers and closes JoyToKey on exit.
 
   - Config + log: %LOCALAPPDATA%\SCMonitor\ (config.json, service_log.txt)
-  - Optional custom icon: put sc.png or sc.ico next to this script or in %LOCALAPPDATA%\SCMonitor\.
+  - Tray icon: checks script folder and %LOCALAPPDATA%\SCMonitor\ for sc.ico / sc.png,
+    automatically downloading sc.ico from GitHub if missing, with a built-in Base64 fallback.
 #>
 
 $script:RepoUrl    = 'https://raw.githubusercontent.com/ranalli/Star-Citizen---VIRPL-Controller-enabler/refs/heads/main/SCMonitorService-Full.ps1'
+$script:IconRepoUrl = 'https://raw.githubusercontent.com/ranalli/Star-Citizen---VIRPL-Controller-enabler/refs/heads/main/sc.ico'
 $script:AppDir     = Join-Path $env:LOCALAPPDATA 'SCMonitor'
 $script:LocalPs1   = Join-Path $script:AppDir 'SCMonitorService-Full.ps1'
 $script:ConfigPath = Join-Path $script:AppDir 'config.json'
@@ -67,13 +69,15 @@ public static class Win32Console
 
 [Win32Console]::Hide()
 
-# ---------- Paths, Logging & Icon ----------
+# ---------- Paths & Logging ----------
 $baseDir = if ($PSCommandPath) { Split-Path $PSCommandPath } else { $script:AppDir }
-$script:IconPng = Join-Path $baseDir 'sc.png'
-$script:IconIco = Join-Path $baseDir 'sc.ico'
+$script:BaseIconPng = Join-Path $baseDir 'sc.png'
+$script:BaseIconIco = Join-Path $baseDir 'sc.ico'
+$script:AppIconPng  = Join-Path $script:AppDir 'sc.png'
+$script:AppIconIco  = Join-Path $script:AppDir 'sc.ico'
 
-# Built-in 32x32 PNG tray icon (Base64 encoded)
-$script:EmbeddedIconBase64 = 'iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAA+UlEQVR4nGNgGGDAiEuibCfDf2pa1OWO3S4MQWpbTMghKBxky+fEClHV4pTF77A6gokelqObiWwXEz6FtHQEDDAiu4hYy5GDkxwHw/R3uTMwYoQAKZZj45MKWPBJvtV2hrOFr+4laNi7tW/hbKFgYaIcgDMEkC3HxsdnOTY+yQ6gF6CLA97uwZ1OaO4AmOW4HDEyomDUAaMOGHXAgDpA2EUIhaa7A/BZTjcH4AM4HYBe/xNqD6DX/8S2B/A2SIhphJBjKTJgYmBANJOJaV6htwFJbRMitwcZGJD6BbRuliNbjuwAJnQBdIW0tJyBYbB1zWjpEFyd0wEHAHVoV/vyxlG3AAAAAElFTkSuQmCC'
+# Built-in 32x32 Star Citizen PNG tray icon (Base64 fallback if offline)
+$script:EmbeddedIconBase64 = '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'
 
 if (-not (Test-Path $script:AppDir)) {
     New-Item -ItemType Directory -Path $script:AppDir -Force | Out-Null
@@ -286,16 +290,39 @@ function Convert-BitmapToIcon([System.Drawing.Bitmap]$SourceBmp) {
 $script:Tray = New-Object System.Windows.Forms.NotifyIcon
 $script:Tray.Icon = [System.Drawing.SystemIcons]::Information
 
-if (Test-Path $script:IconPng) {
+# Download sc.ico into %LOCALAPPDATA%\SCMonitor if no custom icon exists locally
+$hasLocalIcon = (Test-Path $script:BaseIconPng) -or (Test-Path $script:BaseIconIco) -or (Test-Path $script:AppIconPng) -or (Test-Path $script:AppIconIco)
+if (-not $hasLocalIcon) {
     try {
-        $src = New-Object System.Drawing.Bitmap($script:IconPng)
-        $script:Tray.Icon = Convert-BitmapToIcon $src
-        $src.Dispose()
-    } catch { Write-Log "PNG icon load failed: $($_.Exception.Message)" }
-} elseif (Test-Path $script:IconIco) {
-    try { $script:Tray.Icon = New-Object System.Drawing.Icon($script:IconIco) }
-    catch { Write-Log "ICO icon load failed: $($_.Exception.Message)" }
-} elseif ($script:EmbeddedIconBase64) {
+        Invoke-WebRequest -Uri $script:IconRepoUrl -OutFile $script:AppIconIco -UseBasicParsing
+        Write-Log 'Downloaded sc.ico from GitHub repository.'
+    } catch {
+        Write-Log "Icon download failed (falling back to embedded icon): $($_.Exception.Message)"
+    }
+}
+
+$iconLoaded = $false
+foreach ($pngCandidate in @($script:BaseIconPng, $script:AppIconPng)) {
+    if (-not $iconLoaded -and (Test-Path $pngCandidate)) {
+        try {
+            $src = New-Object System.Drawing.Bitmap($pngCandidate)
+            $script:Tray.Icon = Convert-BitmapToIcon $src
+            $src.Dispose()
+            $iconLoaded = $true
+        } catch { Write-Log "PNG icon load failed ($pngCandidate): $($_.Exception.Message)" }
+    }
+}
+
+foreach ($icoCandidate in @($script:BaseIconIco, $script:AppIconIco)) {
+    if (-not $iconLoaded -and (Test-Path $icoCandidate)) {
+        try {
+            $script:Tray.Icon = New-Object System.Drawing.Icon($icoCandidate)
+            $iconLoaded = $true
+        } catch { Write-Log "ICO icon load failed ($icoCandidate): $($_.Exception.Message)" }
+    }
+}
+
+if (-not $iconLoaded -and $script:EmbeddedIconBase64) {
     try {
         $bytes = [Convert]::FromBase64String($script:EmbeddedIconBase64)
         $ms = New-Object System.IO.MemoryStream(, $bytes)
